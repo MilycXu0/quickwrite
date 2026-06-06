@@ -1,0 +1,518 @@
+{% extends "base.html" %}
+{% block title %}创建小说 — Novel Writer Agent{% endblock %}
+
+{% block head %}
+<style>
+    .progress-steps {
+        display: flex; gap: 0.5rem; margin: 1.5rem 0; flex-wrap: wrap;
+    }
+    .progress-step {
+        flex: 1; min-width: 100px; padding: 0.6rem;
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: 6px; text-align: center; font-size: 0.8rem;
+        color: var(--text-dim); transition: all 0.3s;
+    }
+    .progress-step.active { border-color: var(--accent); color: var(--accent); background: rgba(108,92,231,0.1); }
+    .progress-step.done { border-color: var(--green); color: var(--green); }
+    .progress-step.done::before { content: '✅ '; }
+    .progress-step.active::before { content: '⏳ '; }
+    .progress-step.pending::before { content: '⬜ '; }
+
+    .creation-overlay {
+        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(15,15,20,0.85); z-index: 1000;
+        align-items: center; justify-content: center; flex-direction: column;
+    }
+    .creation-overlay.show { display: flex; }
+    .creation-dialog {
+        background: var(--bg-card); border: 2px solid var(--accent);
+        border-radius: var(--radius); padding: 2rem; max-width: 550px;
+        width: 90%; text-align: center;
+    }
+    .creation-dialog h3 { margin-bottom: 1rem; color: var(--accent); }
+    .big-spinner {
+        display: inline-block; width: 48px; height: 48px;
+        border: 3px solid var(--border); border-top-color: var(--accent);
+        border-radius: 50%; animation: spin 0.8s linear infinite; margin: 1rem 0;
+    }
+
+    /* Custom genre & tag input */
+    .genre-card.custom {
+        border-style: dashed; color: var(--text-dim);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem; cursor: pointer;
+    }
+    .genre-card.custom:hover { border-color: var(--accent); color: var(--accent); }
+    .genre-card.custom.selected { border-style: solid; }
+
+    .inline-input {
+        background: var(--bg-input); border: 1px solid var(--accent);
+        color: var(--text); padding: 0.4rem 0.7rem; border-radius: 20px;
+        font-size: 0.85rem; width: 140px; outline: none; font-family: inherit;
+    }
+    .tag-input-row {
+        display: flex; gap: 0.4rem; align-items: center; margin-top: 0.6rem;
+    }
+    .last-used-hint {
+        font-size: 0.75rem; color: var(--text-dim); margin-left: 0.5rem;
+        cursor: pointer; text-decoration: underline; user-select: none;
+    }
+    .last-used-hint:hover { color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h2 style="margin-bottom:1.5rem;">🆕 创建新小说</h2>
+
+<div class="card">
+    <div class="card-title" style="margin-bottom:1rem;">
+        选择小说类型
+        <span class="last-used-hint" id="last-used-hint" style="display:none;" onclick="restoreLastUsed()">
+            🔄 恢复上次设置
+        </span>
+    </div>
+    <div class="genre-grid" id="genre-grid">
+        {% for name in genres %}
+        <div class="genre-card" data-genre="{{ name }}" onclick="selectGenre('{{ name }}')">
+            <div class="genre-name">{{ name }}</div>
+        </div>
+        {% endfor %}
+        <div class="genre-card custom" id="custom-genre-card" onclick="startCustomGenre()" title="自定义类型">
+            <div class="genre-name" id="custom-genre-label">+ 自定义</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title" style="margin-bottom:1rem;">选择热门元素 (可多选)</div>
+    <div class="tag-chips" id="tag-chips">
+        {% for tag in trending_tags %}
+        <span class="tag-chip" data-tag="{{ tag }}" onclick="toggleTag(this, '{{ tag }}')">{{ tag }}</span>
+        {% endfor %}
+    </div>
+    <div class="tag-input-row">
+        <input type="text" class="inline-input" id="custom-tag-input"
+               placeholder="输入自定义元素..."
+               onkeydown="if(event.key==='Enter'){addCustomTag();event.preventDefault();}">
+        <button class="btn btn-outline btn-sm" onclick="addCustomTag()">+ 添加</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title" style="margin-bottom:1rem;">创作要求 (可选)</div>
+    <div class="form-group">
+        <label>对 AI 有什么特别的创作要求？</label>
+        <textarea id="requirements" rows="3"
+            placeholder="例如：主角是废材逆袭、要有学院流元素、世界观设定在大荒时代、加入感情线…"></textarea>
+    </div>
+</div>
+
+<div style="display:flex;gap:1rem;align-items:center;margin-top:1rem;flex-wrap:wrap;">
+    <button class="btn btn-primary btn-lg" onclick="createNovel()" id="create-btn">
+        🚀 开始创作
+    </button>
+    <button class="btn btn-danger btn-lg" onclick="cancelTask()" id="cancel-btn" style="display:none;">
+        ⏹ 中止创作
+    </button>
+    <span id="create-status" style="color:var(--text-dim);"></span>
+</div>
+
+<div id="result" style="margin-top:1.5rem;"></div>
+
+<!-- Creation Progress Overlay -->
+<div class="creation-overlay" id="creation-overlay">
+    <div class="creation-dialog">
+        <div class="big-spinner"></div>
+        <h3 id="overlay-title">正在创作小说...</h3>
+        <div class="progress-steps" id="progress-steps">
+            <div class="progress-step pending" id="step-1">构建世界观</div>
+            <div class="progress-step pending" id="step-2">设计角色</div>
+            <div class="progress-step pending" id="step-3">规划大纲</div>
+            <div class="progress-step pending" id="step-4">初始化故事</div>
+            <div class="progress-step pending" id="step-5">完成创建</div>
+        </div>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin-top:1rem;" id="overlay-hint">
+            这大约需要 1-2 分钟，请耐心等待...
+        </p>
+    </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────
+var STORAGE_KEY = 'novel-writer-last-settings';
+var selectedGenre = '';
+var selectedTags = [];
+var progressTimer = null;
+var currentStep = 0;
+var isCustomGenre = false;
+
+// ── Init ───────────────────────────────────────────
+(function() {
+    // Load from localStorage first, fall back to recommendation
+    var saved = loadSettings();
+    var genre, tags, requirements;
+
+    if (saved && saved.genre) {
+        genre = saved.genre;
+        tags = saved.tags || [];
+        document.getElementById('requirements').value = saved.requirements || '';
+        document.getElementById('last-used-hint').style.display = 'inline';
+    } else {
+        genre = '{{ recommendation.genre }}';
+        tags = [];
+        {% for elem in recommendation.hot_elements %}
+        tags.push('{{ elem }}');
+        {% endfor %}
+    }
+
+    // Apply genre selection
+    applyGenreSelection(genre);
+
+    // Apply tag selections
+    tags.forEach(function(tag) {
+        toggleTagByName(tag);
+    });
+})();
+
+function loadSettings() {
+    try {
+        var raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch(e) { return null; }
+}
+
+function saveSettings(genre, tags, requirements) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            genre: genre,
+            tags: tags,
+            requirements: requirements || '',
+            savedAt: new Date().toISOString()
+        }));
+    } catch(e) {}
+}
+
+function restoreLastUsed() {
+    var saved = loadSettings();
+    if (!saved) return;
+
+    // Clear current selections
+    document.querySelectorAll('.genre-card.selected').forEach(function(c) { c.classList.remove('selected'); });
+    document.querySelectorAll('.tag-chip.selected').forEach(function(c) { c.classList.remove('selected'); });
+    selectedTags = [];
+    isCustomGenre = false;
+
+    // Restore genre
+    applyGenreSelection(saved.genre);
+    // Restore tags
+    (saved.tags || []).forEach(function(tag) { toggleTagByName(tag); });
+    // Restore requirements
+    document.getElementById('requirements').value = saved.requirements || '';
+}
+
+// ── Genre Selection ────────────────────────────────
+function selectGenre(genre) {
+    isCustomGenre = false;
+    // Deselect all
+    document.querySelectorAll('.genre-card.selected').forEach(function(c) { c.classList.remove('selected'); });
+    // Select target
+    var target = document.querySelector('[data-genre="' + genre + '"]');
+    if (target) target.classList.add('selected');
+    selectedGenre = genre;
+}
+
+function applyGenreSelection(genre) {
+    // Check if it's a predefined genre
+    var target = document.querySelector('[data-genre="' + genre + '"]');
+    if (target) {
+        selectGenre(genre);
+    } else {
+        // Custom genre — activate the custom card
+        isCustomGenre = true;
+        document.querySelectorAll('.genre-card.selected').forEach(function(c) { c.classList.remove('selected'); });
+        var customCard = document.getElementById('custom-genre-card');
+        var customLabel = document.getElementById('custom-genre-label');
+        customLabel.textContent = genre;
+        customCard.classList.add('selected');
+        selectedGenre = genre;
+    }
+}
+
+function startCustomGenre() {
+    var label = document.getElementById('custom-genre-label');
+    var current = isCustomGenre ? selectedGenre : '';
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'inline-input';
+    input.value = current;
+    input.placeholder = '输入类型名...';
+    input.style.cssText = 'width:100%;text-align:center;font-size:1rem;';
+    input.onblur = function() { finishCustomGenre(input.value.trim()); };
+    input.onkeydown = function(e) {
+        if (e.key === 'Enter') { finishCustomGenre(input.value.trim()); e.preventDefault(); }
+        if (e.key === 'Escape') { finishCustomGenre(current); e.preventDefault(); }
+    };
+
+    label.innerHTML = '';
+    label.appendChild(input);
+    setTimeout(function() { input.focus(); input.select(); }, 50);
+}
+
+function finishCustomGenre(name) {
+    var label = document.getElementById('custom-genre-label');
+    var card = document.getElementById('custom-genre-card');
+
+    if (name) {
+        isCustomGenre = true;
+        label.textContent = name;
+        selectedGenre = name;
+        document.querySelectorAll('.genre-card.selected').forEach(function(c) { c.classList.remove('selected'); });
+        card.classList.add('selected');
+    } else {
+        // Revert
+        label.textContent = '+ 自定义';
+        if (isCustomGenre) {
+            card.classList.remove('selected');
+            isCustomGenre = false;
+            selectedGenre = '';
+        }
+    }
+}
+
+// ── Tag Selection ──────────────────────────────────
+function toggleTag(el, tag) {
+    el.classList.toggle('selected');
+    if (el.classList.contains('selected')) {
+        if (selectedTags.indexOf(tag) === -1) selectedTags.push(tag);
+    } else {
+        selectedTags = selectedTags.filter(function(t) { return t !== tag; });
+    }
+}
+
+function toggleTagByName(tag) {
+    var chip = document.querySelector('[data-tag="' + tag + '"]');
+    if (chip) {
+        chip.classList.add('selected');
+        if (selectedTags.indexOf(tag) === -1) selectedTags.push(tag);
+    } else {
+        // Custom tag — add a new chip to the DOM
+        addCustomTagToDOM(tag);
+    }
+}
+
+function addCustomTag() {
+    var input = document.getElementById('custom-tag-input');
+    var name = input.value.trim();
+    if (!name) return;
+    if (selectedTags.indexOf(name) >= 0) { input.value = ''; return; }
+    addCustomTagToDOM(name);
+    input.value = '';
+    input.focus();
+}
+
+function addCustomTagToDOM(name) {
+    if (selectedTags.indexOf(name) >= 0) return;
+    // Check if chip already exists
+    if (document.querySelector('[data-tag="' + name + '"]')) {
+        toggleTagByName(name);
+        return;
+    }
+    var chip = document.createElement('span');
+    chip.className = 'tag-chip selected';
+    chip.setAttribute('data-tag', name);
+    chip.textContent = name;
+    chip.onclick = function() { toggleTag(chip, name); };
+    chip.title = '点击移除';
+    document.getElementById('tag-chips').appendChild(chip);
+    selectedTags.push(name);
+}
+
+// ── Progress Overlay ───────────────────────────────
+function startProgressSimulation() {
+    var stepNames = ['构建世界观', '设计角色', '规划大纲', '初始化故事', '完成创建'];
+    var stepDurations = [25000, 20000, 15000, 10000, 8000];
+    currentStep = 0;
+    markStepDone(-1);
+
+    function advanceStep() {
+        if (currentStep < 5) {
+            markStepActive(currentStep);
+            var title = document.getElementById('overlay-title');
+            if (title) title.textContent = 'Step ' + (currentStep + 1) + '/5: ' + stepNames[currentStep] + '...';
+            currentStep++;
+            if (currentStep < 5) {
+                progressTimer = setTimeout(advanceStep, stepDurations[currentStep - 1]);
+            }
+        }
+    }
+    advanceStep();
+}
+
+function markStepActive(index) {
+    for (var i = 0; i < 5; i++) {
+        var el = document.getElementById('step-' + (i + 1));
+        if (!el) continue;
+        el.className = 'progress-step';
+        if (i < index) el.classList.add('done');
+        else if (i === index) el.classList.add('active');
+        else el.classList.add('pending');
+    }
+}
+
+function markStepDone(index) {
+    for (var i = 0; i < 5; i++) {
+        var el = document.getElementById('step-' + (i + 1));
+        if (!el) continue;
+        el.className = 'progress-step';
+        if (i <= index) el.classList.add('done');
+        else el.classList.add('pending');
+    }
+}
+
+function showOverlay() {
+    var overlay = document.getElementById('creation-overlay');
+    if (overlay) overlay.classList.add('show');
+    startProgressSimulation();
+}
+
+function hideOverlay() {
+    var overlay = document.getElementById('creation-overlay');
+    if (overlay) overlay.classList.remove('show');
+    if (progressTimer) { clearTimeout(progressTimer); progressTimer = null; }
+}
+
+// ── Create Novel ───────────────────────────────────
+var TASK_POLL_MS_CREATE = 3000;
+var createTaskId = null;
+
+async function createNovel() {
+    var btn = document.getElementById('create-btn');
+    var cancelBtn = document.getElementById('cancel-btn');
+    var resultEl = document.getElementById('result');
+
+    if (!selectedGenre) {
+        resultEl.innerHTML = '<div class="alert alert-error">请先选择一个小说类型</div>';
+        return;
+    }
+
+    // Save current settings for next time
+    saveSettings(selectedGenre, selectedTags, document.getElementById('requirements').value || '');
+
+    btn.disabled = true;
+    btn.style.display = 'none';
+    cancelBtn.style.display = 'inline-flex';
+    resultEl.innerHTML = '';
+    showOverlay();
+
+    var payload = {
+        genre: selectedGenre,
+        extra_requirements: document.getElementById('requirements').value || '',
+        custom_elements: selectedTags
+    };
+
+    try {
+        var resp = await fetch('/api/novels', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        var data = await resp.json();
+
+        if (data.success && data.task_id) {
+            createTaskId = data.task_id;
+            // Save to localStorage for refresh recovery
+            try { localStorage.setItem('nw-active-task', JSON.stringify({
+                taskId: data.task_id, type: 'create', expires: Date.now() + 10*60*1000
+            })); } catch(e) {}
+            // Start polling
+            pollCreateTask(data.task_id);
+        } else {
+            hideOverlay();
+            resultEl.innerHTML = '<div class="alert alert-error">❌ ' + (data.error || '创建失败') + '</div>';
+            btn.disabled = false;
+            btn.style.display = 'inline-flex';
+            cancelBtn.style.display = 'none';
+        }
+    } catch(e) {
+        hideOverlay();
+        resultEl.innerHTML = '<div class="alert alert-error">❌ 网络请求失败: ' + e.message + '</div>';
+        btn.disabled = false;
+        btn.style.display = 'inline-flex';
+        cancelBtn.style.display = 'none';
+    }
+}
+
+async function pollCreateTask(taskId) {
+    try {
+        var resp = await fetch('/api/tasks/' + taskId);
+        var state = await resp.json();
+    } catch(e) {
+        setTimeout(function() { pollCreateTask(taskId); }, TASK_POLL_MS_CREATE);
+        return;
+    }
+
+    var overlayTitle = document.getElementById('overlay-title');
+    var overlayHint = document.getElementById('overlay-hint');
+    var btn = document.getElementById('create-btn');
+    var cancelBtn = document.getElementById('cancel-btn');
+    var resultEl = document.getElementById('result');
+
+    if (state.status === 'completed') {
+        try { localStorage.removeItem('nw-active-task'); } catch(e) {}
+        markStepDone(4);
+        if (overlayTitle) overlayTitle.textContent = '✅ ' + (state.title || '小说') + ' 创建成功！';
+        if (overlayHint) overlayHint.textContent = '即将跳转到小说页面...';
+        setTimeout(function() {
+            hideOverlay();
+            window.location.href = '/novel/' + (state.novel_id || '');
+        }, 1500);
+    } else if (state.status === 'failed') {
+        try { localStorage.removeItem('nw-active-task'); } catch(e) {}
+        hideOverlay();
+        resultEl.innerHTML = '<div class="alert alert-error">❌ ' + (state.error || '创建失败') + '</div>';
+        btn.disabled = false;
+        btn.style.display = 'inline-flex';
+        cancelBtn.style.display = 'none';
+    } else if (state.status === 'cancelled') {
+        try { localStorage.removeItem('nw-active-task'); } catch(e) {}
+        hideOverlay();
+        resultEl.innerHTML = '<div class="alert alert-info">⏹ 已中止</div>';
+        btn.disabled = false;
+        btn.style.display = 'inline-flex';
+        cancelBtn.style.display = 'none';
+    } else {
+        // Still running — keep overlay and poll
+        if (overlayHint) overlayHint.textContent = '后台运行中，刷新页面不会中断...';
+        setTimeout(function() { pollCreateTask(taskId); }, TASK_POLL_MS_CREATE);
+    }
+}
+
+// ── Restore active task on page load ────────────
+(function() {
+    var activeTask = null;
+    try { activeTask = JSON.parse(localStorage.getItem('nw-active-task') || 'null'); } catch(e) {}
+    if (activeTask && activeTask.expires > Date.now() && activeTask.type === 'create') {
+        createTaskId = activeTask.taskId;
+        showOverlay();
+        var overlayHint = document.getElementById('overlay-hint');
+        if (overlayHint) overlayHint.textContent = '正在恢复之前的任务...';
+        document.getElementById('cancel-btn').style.display = 'inline-flex';
+        document.getElementById('create-btn').style.display = 'none';
+        pollCreateTask(activeTask.taskId);
+    }
+})();
+
+async function cancelTask() {
+    if (createTaskId) {
+        try { await fetch('/api/tasks/' + createTaskId + '/cancel', {method: 'POST'}); } catch(e) {}
+        try { localStorage.removeItem('nw-active-task'); } catch(e) {}
+    }
+    hideOverlay();
+    document.getElementById('create-btn').disabled = false;
+    document.getElementById('create-btn').style.display = 'inline-flex';
+    document.getElementById('cancel-btn').style.display = 'none';
+}
+</script>
+{% endblock %}

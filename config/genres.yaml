@@ -1,0 +1,150 @@
+# Genre definitions for Chinese web novels
+# Each genre has sub-genres and common tropes/elements
+
+genres:
+  玄幻:
+    description: "东方玄幻，包含修炼、异界、血脉等元素"
+    subgenres:
+      - 东方玄幻
+      - 异界大陆
+      - 王朝争霸
+      - 异术超能
+    common_elements:
+      - 修炼体系
+      - 血脉觉醒
+      - 宗门势力
+      - 天材地宝
+      - 秘境探险
+    audience_expectations:
+      - 主角成长线清晰
+      - 战斗描写精彩
+      - 修炼突破爽点
+      - 势力对抗宏大
+
+  仙侠:
+    description: "古典仙侠、修真问道、仙魔争锋"
+    subgenres:
+      - 古典仙侠
+      - 现代修真
+      - 洪荒封神
+      - 神话修真
+    common_elements:
+      - 修仙等级
+      - 法宝灵器
+      - 丹药阵法
+      - 天劫飞升
+      - 仙魔对立
+    audience_expectations:
+      - 道法意境深远
+      - 因果轮回主题
+      - 仙凡之别有张力
+      - 法宝描写详细
+
+  都市:
+    description: "现代都市背景，包含系统、重生、鉴宝等"
+    subgenres:
+      - 都市生活
+      - 异术超能
+      - 重生逆袭
+      - 系统流
+      - 鉴宝捡漏
+    common_elements:
+      - 系统金手指
+      - 重生先知
+      - 商场博弈
+      - 身份逆袭
+      - 都市异能
+    audience_expectations:
+      - 代入感强
+      - 现实逆袭爽点
+      - 商战/感情线交织
+      - 节奏明快
+
+  科幻:
+    description: "科幻未来，星际文明、机甲、末世"
+    subgenres:
+      - 星际文明
+      - 未来世界
+      - 末世危机
+      - 机甲战斗
+      - 进化变异
+    common_elements:
+      - 高科技武器
+      - 基因进化
+      - 星际殖民
+      - AI 觉醒
+      - 文明冲突
+    audience_expectations:
+      - 科技设定自洽
+      - 宏大宇宙观
+      - 文明碰撞精彩
+
+  历史:
+    description: "历史架空、穿越古代、王朝争霸"
+    subgenres:
+      - 架空历史
+      - 穿越古代
+      - 历史传奇
+      - 王朝争霸
+    common_elements:
+      - 历史名人
+      - 科举朝堂
+      - 战争谋略
+      - 穿越先知
+      - 制度改革
+    audience_expectations:
+      - 历史考据感
+      - 朝堂权谋精彩
+      - 穿越优势发挥
+
+  游戏:
+    description: "游戏异界、电竞、虚拟现实"
+    subgenres:
+      - 游戏异界
+      - 电子竞技
+      - 虚拟现实
+      - 游戏系统
+    common_elements:
+      - 等级系统
+      - 职业体系
+      - 装备掉落
+      - 公会争霸
+      - 副本挑战
+    audience_expectations:
+      - 游戏机制清晰
+      - 升级打怪爽感
+      - 装备/技能体系完整
+
+  悬疑:
+    description: "悬疑推理、灵异恐怖、盗墓探险"
+    subgenres:
+      - 悬疑推理
+      - 灵异恐怖
+      - 盗墓探险
+      - 心理悬疑
+    common_elements:
+      - 案件线索
+      - 惊悚氛围
+      - 未解之谜
+      - 灵异现象
+      - 反转型结局
+    audience_expectations:
+      - 推理逻辑严密
+      - 恐怖氛围到位
+      - 反转令人意外
+      - 节奏紧凑
+
+trending_tags_2025:
+  - 无CP大女主
+  - 发疯文学
+  - 考据式穿越
+  - 修仙2.0
+  - 短剧改编
+  - 重生复仇
+  - 系统流
+  - 无敌流
+  - 杀伐果断
+  - 赘婿逆袭
+  - 恶毒配角觉醒
+  - 无限流
+  - 规则怪谈

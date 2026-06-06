@@ -1,0 +1,41 @@
+# Environment — contains API keys, NEVER commit
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database files (may contain local state)
+data/*.db
+
+# Output novels (user-generated content)
+output/
+
+# Logs
+logs/*.log
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Claude / AI assistant
+.claude/

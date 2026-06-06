@@ -1,0 +1,77 @@
+# Novel Writer Agent — Main Configuration
+
+app:
+  name: "NovelWriterAgent"
+  version: "0.1.0"
+  debug: false
+
+llm:
+  default_model: "claude-sonnet-4-6-20250514"
+  models:
+    chapter_writing: "claude-sonnet-4-6-20250514"
+    world_building: "claude-opus-4-8-20251101"
+    character_design: "claude-opus-4-8-20251101"
+    plot_outlining: "claude-opus-4-8-20251101"
+    trend_classification: "claude-haiku-4-5-20251001"
+    quality_check: "claude-haiku-4-5-20251001"
+    summarization: "claude-haiku-4-5-20251001"
+  max_tokens: 4096
+  temperature: 0.8
+  adaptive_thinking:
+    enabled: true
+    budget_tokens: 1024
+  streaming: true
+  prompt_caching:
+    enabled: true
+    ttl_minutes: 60
+
+generation:
+  chapter:
+    target_words: 2000
+    min_words: 1800
+    max_words: 2200
+    chapters_per_day: 2
+  novel:
+    default_target_chapters: 100
+    min_chapters: 50
+    max_chapters: 500
+
+context:
+  recent_full_chapters: 3
+  max_chapter_summaries: 90
+  summary_target_words: 100
+
+scheduling:
+  timezone: "Asia/Shanghai"
+  morning_chapter: "08:00"
+  evening_chapter: "20:00"
+  trend_refresh:
+    day: "sun"
+    time: "03:00"
+  cost_report: "23:00"
+  health_check_interval_minutes: 30
+
+scraping:
+  rate_limit:
+    fanqie:
+      min_delay_ms: 50
+      max_delay_ms: 150
+      backoff_base: 2.0
+    qidian:
+      min_delay_ms: 500
+      max_delay_ms: 1500
+      backoff_base: 2.0
+  max_retries: 3
+  cache_ttl_hours: 24
+  user_agent_rotation: true
+
+budget:
+  monthly_limit_usd: 25.00
+  alert_threshold: 0.8  # 80% of budget triggers alert
+
+output:
+  formats:
+    - txt
+    - epub
+  encoding: "utf-8"
+  line_endings: "\r\n"  # Windows CRLF

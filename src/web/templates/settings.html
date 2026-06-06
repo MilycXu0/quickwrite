@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}系统设置 — Novel Writer Agent{% endblock %}
+
+{% block content %}
+
+<h2 style="margin-bottom:1.5rem;">⚙️ 系统设置</h2>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📡 LLM 配置</span>
+    </div>
+    <div class="settings-section">
+        <div class="settings-grid">
+            <span class="key">默认模型</span>
+            <span class="val">{{ config.llm.default_model }}</span>
+            <span class="key">章节写作</span>
+            <span class="val">{{ config.llm.models.chapter_writing }}</span>
+            <span class="key">世界观构建</span>
+            <span class="val">{{ config.llm.models.world_building }}</span>
+            <span class="key">角色设计</span>
+            <span class="val">{{ config.llm.models.character_design }}</span>
+            <span class="key">大纲规划</span>
+            <span class="val">{{ config.llm.models.plot_outlining }}</span>
+            <span class="key">趋势分类</span>
+            <span class="val">{{ config.llm.models.trend_classification }}</span>
+            <span class="key">质量检查</span>
+            <span class="val">{{ config.llm.models.quality_check }}</span>
+            <span class="key">章节摘要</span>
+            <span class="val">{{ config.llm.models.summarization }}</span>
+            <span class="key">最大 Tokens</span>
+            <span class="val">{{ config.llm.max_tokens }}</span>
+            <span class="key">写作温度</span>
+            <span class="val">{{ config.llm.temperature }}</span>
+            <span class="key">自适应思考</span>
+            <span class="val">{% if config.llm.adaptive_thinking.enabled %}✅ 已启用 ({{ config.llm.adaptive_thinking.budget_tokens }} tokens){% else %}❌ 已禁用{% endif %}</span>
+            <span class="key">Prompt 缓存</span>
+            <span class="val">{% if config.llm.prompt_caching.enabled %}✅ 已启用 (TTL: {{ config.llm.prompt_caching.ttl_minutes }}分钟){% else %}❌ 已禁用{% endif %}</span>
+            <span class="key">API Key</span>
+            <span class="val">{% if api_ready %}✅ 已配置{% else %}⚠️ 未配置{% endif %}</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">✍️ 生成配置</span>
+    </div>
+    <div class="settings-section">
+        <div class="settings-grid">
+            <span class="key">目标字数</span>
+            <span class="val">{{ config.generation.chapter.target_words }} 字/章</span>
+            <span class="key">字数范围</span>
+            <span class="val">{{ config.generation.chapter.min_words }} - {{ config.generation.chapter.max_words }} 字</span>
+            <span class="key">每日章节</span>
+            <span class="val">{{ config.generation.chapter.chapters_per_day }} 章</span>
+            <span class="key">默认目标章节</span>
+            <span class="val">{{ config.generation.novel.default_target_chapters }} 章</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📅 调度配置</span>
+    </div>
+    <div class="settings-section">
+        <div class="settings-grid">
+            <span class="key">时区</span>
+            <span class="val">{{ config.scheduling.timezone }}</span>
+            <span class="key">上午章节</span>
+            <span class="val">{{ config.scheduling.morning_chapter }}</span>
+            <span class="key">下午章节</span>
+            <span class="val">{{ config.scheduling.evening_chapter }}</span>
+            <span class="key">趋势刷新</span>
+            <span class="val">每周{{ config.scheduling.trend_refresh.day }} {{ config.scheduling.trend_refresh.time }}</span>
+            <span class="key">成本报告</span>
+            <span class="val">每日 {{ config.scheduling.cost_report }}</span>
+            <span class="key">健康检查</span>
+            <span class="val">每 {{ config.scheduling.health_check_interval_minutes }} 分钟</span>
+            <span class="key">调度器状态</span>
+            <span class="val">{% if scheduler_running %}▶️ 运行中{% else %}⏹ 已停止{% endif %}</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">💰 预算与成本</span>
+    </div>
+    <div class="settings-section">
+        <div class="settings-grid">
+            <span class="key">月度预算</span>
+            <span class="val">${{ "%.2f"|format(cost.monthly_budget_usd) }}</span>
+            <span class="key">累计花费</span>
+            <span class="val">${{ "%.4f"|format(cost.total_cost_usd) }}</span>
+            <span class="key">剩余预算</span>
+            <span class="val">${{ "%.4f"|format(cost.remaining_budget_usd) }}</span>
+            <span class="key">API 调用次数</span>
+            <span class="val">{{ cost.total_calls }}</span>
+            <span class="key">告警阈值</span>
+            <span class="val">{{ "%.0f"|format(config.budget.alert_threshold * 100) }}%</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">🗄️ 存储与输出</span>
+    </div>
+    <div class="settings-section">
+        <div class="settings-grid">
+            <span class="key">数据库</span>
+            <span class="val">{{ db_url }}</span>
+            <span class="key">输出目录</span>
+            <span class="val">{{ output_dir }}</span>
+            <span class="key">输出格式</span>
+            <span class="val">{{ config.output.formats | join(', ') | upper }}</span>
+            <span class="key">文件编码</span>
+            <span class="val">{{ config.output.encoding }}</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">ℹ️ 关于</span>
+    </div>
+    <div class="settings-section">
+        <div class="settings-grid">
+            <span class="key">应用名称</span>
+            <span class="val">Novel Writer Agent</span>
+            <span class="key">版本</span>
+            <span class="val">{{ app_version }}</span>
+            <span class="key">技术栈</span>
+            <span class="val">Python 3.12+ / FastAPI / Jinja2 / Anthropic Claude API</span>
+            <span class="key">配置文件</span>
+            <span class="val">F:\novel-writer-agent\config\</span>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

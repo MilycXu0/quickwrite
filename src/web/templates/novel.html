@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}{{ novel.title }} — Novel Writer Agent{% endblock %}
+
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:1.5rem;">
+    <div>
+        <h2>📖 {{ novel.title }}</h2>
+        <div class="novel-meta" style="margin-top:0.3rem;">
+            <span class="badge badge-{{ novel.status }}">{{ novel.status }}</span>
+            <span>{{ novel.genre }}{% if novel.subgenre %} · {{ novel.subgenre }}{% endif %}</span>
+            <span>📝 {{ novel.total_chapters }}/{{ novel.target_chapters }} 章</span>
+        </div>
+        {% if novel.synopsis %}
+        <p style="margin-top:0.8rem;color:var(--text-dim);max-width:600px;">{{ novel.synopsis }}</p>
+        {% endif %}
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+        <select id="chapter-count" style="width:auto;padding:0.45rem 0.6rem;">
+            <option value="1">1 章</option>
+            <option value="3">3 章</option>
+            <option value="5">5 章</option>
+            <option value="10">10 章</option>
+        </select>
+        <button class="btn btn-success" onclick="generateChapter({{ novel.id }})" id="gen-btn">
+            ✨ 生成
+        </button>
+        <button class="btn btn-danger" onclick="cancelGen()" id="cancel-gen-btn" style="display:none;">
+            ⏹ 中止
+        </button>
+        <button class="btn btn-outline" onclick="exportNovel({{ novel.id }}, 'txt')" id="export-txt-btn">
+            📄 TXT
+        </button>
+        <button class="btn btn-outline" onclick="exportNovel({{ novel.id }}, 'epub')" id="export-epub-btn">
+            📖 EPUB
+        </button>
+    </div>
+</div>
+
+<!-- Generate with custom instructions -->
+<div class="card" style="margin-bottom:1rem;">
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="special-instructions" placeholder="特殊创作要求（可选）：比如 加强感情线、加入战斗场景..."
+               style="flex:1;min-width:200px;">
+        <button class="btn btn-primary" onclick="generateWithInstructions({{ novel.id }})" id="gen-instr-btn">
+            ✨ 按要求生成
+        </button>
+    </div>
+    <div id="generate-status"></div>
+</div>
+
+<!-- Chapter List -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📋 章节目录 ({{ chapter_count }} 章)</span>
+    </div>
+
+    {% if chapters %}
+    <div class="chapter-list">
+        {% for ch in chapters|sort(attribute='number') %}
+        <div class="chapter-row {% if not ch.has_content %}draft-row{% endif %}">
+            <span class="ch-num">第{{ ch.number }}章</span>
+            <span class="ch-title">
+                <a href="/novel/{{ novel.id }}/chapter/{{ ch.number }}">{{ ch.title }}</a>
+            </span>
+            <span class="ch-meta">
+                {% if ch.has_content and ch.word_count > 0 %}
+                <span>{{ ch.word_count }}字</span>
+                {% else %}
+                <span style="color:var(--text-dim);">待生成</span>
+                {% endif %}
+                {% if ch.quality_score and ch.quality_score > 0 %}
+                <span>⭐ {{ "%.0f"|format(ch.quality_score * 100) }}</span>
+                {% endif %}
+                {% if ch.has_content %}
+                <span>✅</span>
+                {% else %}
+                <span style="color:var(--text-dim);">📝</span>
+                {% endif %}
+                <button class="btn btn-outline btn-sm" onclick="deleteChapter({{ novel.id }}, {{ ch.number }})" style="color:var(--red);border-color:var(--red);margin-left:0.5rem;" title="删除此章">🗑</button>
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="text-align:center;padding:2rem;color:var(--text-dim);">尚无章节，点击上方按钮开始生成</p>
+    {% endif %}
+</div>
+
+<script>
+var TASK_POLL_MS = 2000;
+var currentTaskId = null;
+
+// ── Restore active task on page load ────────────
+(function() {
+    var activeTask = null;
+    try { activeTask = JSON.parse(localStorage.getItem('nw-active-task') || 'null'); } catch(e) {}
+    if (activeTask && activeTask.expires > Date.now()) {
+        showGenButtons(true);
+        document.getElementById('generate-status').style.display = 'block';
+        document.getElementById('generate-status').innerHTML =
+            '<div class="alert alert-info"><span class="loading"></span> 后台正在生成中...（刷新页面不会中断）</div>';
+        pollTask(activeTask.taskId, activeTask.novelId);
+    }
+})();
+
+function saveActiveTask(taskId, novelId) {
+    try {
+        localStorage.setItem('nw-active-task', JSON.stringify({
+            taskId: taskId, novelId: novelId,
+            expires: Date.now() + 10 * 60 * 1000
+        }));
+    } catch(e) {}
+}
+
+function clearActiveTask() {
+    try { localStorage.removeItem('nw-active-task'); } catch(e) {}
+}
+
+function showGenButtons(showCancel) {
+    document.getElementById('gen-btn').style.display = showCancel ? 'none' : 'inline-flex';
+    document.getElementById('gen-instr-btn').style.display = showCancel ? 'none' : 'inline-flex';
+    document.getElementById('cancel-gen-btn').style.display = showCancel ? 'inline-flex' : 'none';
+}
+
+async function generateChapter(novelId) {
+    var count = parseInt(document.getElementById('chapter-count').value) || 1;
+    return await triggerGenerate(novelId, '', count);
+}
+
+async function generateWithInstructions(novelId) {
+    var instructions = document.getElementById('special-instructions').value;
+    var count = parseInt(document.getElementById('chapter-count').value) || 1;
+    return await triggerGenerate(novelId, instructions, count);
+}
+
+async function triggerGenerate(novelId, instructions, count) {
+    var status = document.getElementById('generate-status');
+    showGenButtons(true);
+    status.style.display = 'block';
+    var label = count > 1 ? ('批量生成 ' + count + ' 章') : '生成章节';
+    status.innerHTML = '<div class="alert alert-info"><span class="loading"></span> 任务已启动，' + label + '...<br><small style="color:var(--text-dim);">刷新页面不会中断任务</small></div>';
+
+    try {
+        var resp = await fetch('/api/novels/' + novelId + '/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({special_instructions: instructions, count: count})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            currentTaskId = data.task_id;
+            saveActiveTask(data.task_id, novelId);
+            pollTask(data.task_id, novelId, count);
+        } else {
+            status.innerHTML = '<div class="alert alert-error">❌ ' + data.error + '</div>';
+            showGenButtons(false);
+        }
+    } catch(e) {
+        status.innerHTML = '<div class="alert alert-error">❌ ' + e.message + '</div>';
+        showGenButtons(false);
+    }
+}
+
+async function pollTask(taskId, novelId, total) {
+    var status = document.getElementById('generate-status');
+    total = total || 1;
+
+    try {
+        var resp = await fetch('/api/tasks/' + taskId);
+        var state = await resp.json();
+    } catch(e) {
+        setTimeout(function() { pollTask(taskId, novelId, total); }, TASK_POLL_MS);
+        return;
+    }
+
+    if (state.status === 'completed') {
+        clearActiveTask();
+        showGenButtons(false);
+        var genCount = state.chapters_generated || 1;
+        if (state.chapter_number) {
+            status.innerHTML = '<div class="alert alert-success">✅ 已完成 ' + genCount + ' 章！最新：第' + state.chapter_number + '章 《' + state.title + '》 ' + state.word_count + '字 | 质量:' + Math.round((state.quality_score || 0) * 100) + '分</div>';
+            setTimeout(function() { location.reload(); }, 2000);
+        } else {
+            location.reload();
+        }
+    } else if (state.status === 'failed') {
+        clearActiveTask();
+        showGenButtons(false);
+        status.innerHTML = '<div class="alert alert-error">❌ 生成失败: ' + (state.error || '未知错误') + '</div>';
+    } else if (state.status === 'cancelled') {
+        clearActiveTask();
+        showGenButtons(false);
+        status.innerHTML = '<div class="alert alert-info">⏹ 任务已中止</div>';
+    } else {
+        // Still running — show progress
+        var prog = state.progress;
+        var progText = '';
+        if (prog && prog.total > 1) {
+            progText = '进度: ' + prog.current + '/' + prog.total + ' 章 | ';
+        }
+        if (state.last_chapter) {
+            progText += '最新完成: 第' + state.last_chapter + '章';
+        }
+        var elapsed = Math.round((Date.now()/1000 - state.created_at) / 60);
+        status.innerHTML = '<div class="alert alert-info"><span class="loading"></span> Claude 创作中...<br>' +
+            progText +
+            '<br><small style="color:var(--text-dim);">已运行 ' + elapsed + ' 分钟 | 刷新页面不会中断</small></div>';
+        setTimeout(function() { pollTask(taskId, novelId, total); }, TASK_POLL_MS);
+    }
+}
+
+async function cancelGen() {
+    if (!currentTaskId) return;
+    try {
+        var resp = await fetch('/api/tasks/' + currentTaskId + '/cancel', {method: 'POST'});
+        clearActiveTask();
+    } catch(e) {}
+    showGenButtons(false);
+    document.getElementById('generate-status').innerHTML = '<div class="alert alert-info">⏹ 已中止</div>';
+}
+
+async function deleteChapter(novelId, chNum) {
+    if (!confirm('确定要删除第' + chNum + '章吗？此操作不可恢复！')) return;
+    var resp = await fetch('/api/novels/' + novelId + '/chapters/' + chNum, {method: 'DELETE'});
+    var data = await resp.json();
+    alert(data.success ? '✅ ' + data.message : '❌ ' + data.error);
+    location.reload();
+}
+
+async function exportNovel(novelId, format) {
+    var btnId = format === 'epub' ? 'export-epub-btn' : 'export-txt-btn';
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+    var origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ 编译中...';
+
+    try {
+        var resp = await fetch('/api/novels/' + novelId + '/export/' + format, {
+            method: 'POST'
+        });
+        if (!resp.ok) {
+            var err = await resp.json();
+            alert('❌ 导出失败: ' + (err.error || resp.statusText));
+            btn.disabled = false;
+            btn.textContent = origText;
+            return;
+        }
+        var blob = await resp.blob();
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = format === 'epub' ? 'novel.epub' : 'novel.txt';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    } catch(e) {
+        alert('❌ 导出失败: ' + e.message);
+    }
+    btn.disabled = false;
+    btn.textContent = origText;
+}
+
+async function cancelGen() {
+    var cancelBtn = document.getElementById('cancel-gen-btn');
+    var status = document.getElementById('generate-status');
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = '⏳ 中止中...';
+
+    try {
+        const resp = await fetch('/api/tasks/cancel', {method: 'POST'});
+        const data = await resp.json();
+        status.innerHTML = '<div class="alert alert-info">⏹ 已中止</div>';
+        showGenButtons(false);
+    } catch(e) {
+        status.innerHTML = '<div class="alert alert-error">❌ ' + e.message + '</div>';
+    }
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = '⏹ 中止';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,619 @@
+/* Novel Writer Agent — Web UI Styles */
+
+:root {
+  --bg: #0f0f14;
+  --bg-card: #1a1a24;
+  --bg-input: #12121a;
+  --border: #2a2a3a;
+  --text: #e0e0e0;
+  --text-dim: #8888a0;
+  --accent: #6c5ce7;
+  --accent-hover: #7d6ff0;
+  --green: #00d2a0;
+  --orange: #f0a040;
+  --red: #e0556a;
+  --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── Layout ─────────────────────────── */
+
+nav {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  gap: 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+nav .logo {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+nav .nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+nav a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.15s;
+}
+
+nav a:hover, nav a.active {
+  color: var(--text);
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* ── Cards ───────────────────────────── */
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* ── Buttons ─────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-success {
+  background: var(--green);
+  color: #0f0f14;
+}
+
+.btn-success:hover {
+  opacity: 0.9;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-outline:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-danger {
+  background: var(--red);
+  color: white;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.btn-lg {
+  padding: 0.8rem 1.8rem;
+  font-size: 1rem;
+}
+
+/* ── Forms ───────────────────────────── */
+
+.form-group {
+  margin-bottom: 1.2rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ── Genre Grid ──────────────────────── */
+
+.genre-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+
+.genre-card {
+  background: var(--bg-input);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.genre-card:hover {
+  border-color: var(--accent);
+}
+
+.genre-card.selected {
+  border-color: var(--accent);
+  background: rgba(108, 92, 231, 0.1);
+}
+
+.genre-card .genre-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.genre-card .genre-desc {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 0.3rem;
+}
+
+/* ── Tag Chips ───────────────────────── */
+
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tag-chip {
+  padding: 0.3rem 0.7rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.tag-chip:hover {
+  border-color: var(--accent);
+}
+
+.tag-chip.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* ── Novel List ──────────────────────── */
+
+.novel-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.novel-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.novel-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 2px 0 0 2px;
+}
+
+.novel-item.genre-玄幻::before { background: #6c5ce7; }
+.novel-item.genre-仙侠::before { background: #00d2a0; }
+.novel-item.genre-都市::before { background: #0984e3; }
+.novel-item.genre-科幻::before { background: #00cec9; }
+.novel-item.genre-历史::before { background: #e17055; }
+.novel-item.genre-游戏::before { background: #fdcb6e; }
+.novel-item.genre-悬疑::before { background: #d63031; }
+
+.novel-item:hover {
+  border-color: var(--accent);
+}
+
+.novel-info h3 {
+  font-size: 1rem;
+  margin-bottom: 0.2rem;
+}
+
+.novel-info h3 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.novel-info h3 a:hover {
+  color: var(--accent);
+}
+
+.novel-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  display: flex;
+  gap: 1rem;
+}
+
+.novel-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ── Status Badges ───────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-writing { background: rgba(0,210,160,0.15); color: var(--green); }
+.badge-planning { background: rgba(240,160,64,0.15); color: var(--orange); }
+.badge-completed { background: rgba(108,92,231,0.15); color: var(--accent); }
+.badge-paused { background: rgba(136,136,160,0.15); color: var(--text-dim); }
+
+/* ── Chapter List ────────────────────── */
+
+.chapter-list {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.chapter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  background: var(--bg-input);
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.chapter-row:hover {
+  background: rgba(108,92,231,0.08);
+}
+
+.chapter-row.draft-row {
+  opacity: 0.7;
+}
+
+.chapter-row.draft-row:hover {
+  opacity: 1;
+}
+
+.chapter-row .ch-num {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  min-width: 3rem;
+}
+
+.chapter-row .ch-title {
+  flex: 1;
+}
+
+.chapter-row .ch-title a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.chapter-row .ch-title a:hover {
+  color: var(--accent);
+}
+
+.chapter-row .ch-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* ── Chapter Content ─────────────────── */
+
+.chapter-content {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2.5rem;
+  font-size: 1.05rem;
+  line-height: 2;
+  white-space: pre-wrap;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.chapter-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ── Stats Grid ──────────────────────── */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.2rem;
+}
+
+/* ── Alerts / Loading ────────────────── */
+
+.alert {
+  padding: 0.8rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.alert-info {
+  background: rgba(108,92,231,0.1);
+  border: 1px solid rgba(108,92,231,0.3);
+}
+
+.alert-error {
+  background: rgba(224,85,106,0.1);
+  border: 1px solid rgba(224,85,106,0.3);
+  color: var(--red);
+}
+
+.alert-success {
+  background: rgba(0,210,160,0.1);
+  border: 1px solid rgba(0,210,160,0.3);
+  color: var(--green);
+}
+
+#generate-status {
+  margin-top: 1rem;
+  display: none;
+}
+
+.loading {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ──────────────────────── */
+
+@media (max-width: 768px) {
+  main { padding: 1rem; }
+  .chapter-content { padding: 1rem; font-size: 0.95rem; }
+  .novel-item { flex-direction: column; gap: 0.8rem; }
+  .novel-actions { width: 100%; }
+  .novel-actions .btn { flex: 1; text-align: center; }
+}
+
+/* ── Light Theme ─────────────────────── */
+
+body.light {
+  --bg: #f5f5f0;
+  --bg-card: #ffffff;
+  --bg-input: #fafaf8;
+  --border: #d0d0c8;
+  --text: #2a2a2a;
+  --text-dim: #888888;
+}
+
+body.light .chapter-content {
+  background: #ffffff;
+  border-color: #d0d0c8;
+}
+
+body.light nav {
+  background: #ffffff;
+  border-bottom-color: #d0d0c8;
+}
+
+/* ── Reading Controls ────────────────── */
+
+.reading-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.reading-controls .ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.reading-controls .ctrl-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+}
+
+.reading-controls .ctrl-btn:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.reading-controls .ctrl-btn.active {
+  background: var(--accent);
+  color: white;
+}
+
+.reading-controls .ctrl-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  min-width: 2rem;
+  text-align: center;
+}
+
+/* ── Progress Bar ────────────────────── */
+
+.progress-bar {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  margin: 1.5rem auto;
+  max-width: 800px;
+  overflow: hidden;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+/* ── Settings Page ───────────────────── */
+
+.settings-section {
+  margin-bottom: 2rem;
+}
+
+.settings-section h3 {
+  font-size: 1rem;
+  color: var(--accent);
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.settings-grid .key {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.settings-grid .val {
+  color: var(--text);
+  word-break: break-all;
+}

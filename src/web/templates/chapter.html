@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}第{{ chapter.chapter_number }}章 {{ chapter.title }} — {{ novel.title }}{% endblock %}
+
+{% block head %}
+<style>
+    .chapter-content.font-sm { font-size: 0.9rem; }
+    .chapter-content.font-md { font-size: 1.05rem; }
+    .chapter-content.font-lg { font-size: 1.25rem; }
+    .chapter-content.font-xl { font-size: 1.45rem; }
+
+    /* ── Top chapter header ──────────────── */
+    .reader-header {
+        text-align: center; padding: 2rem 1rem 1rem;
+        max-width: 800px; margin: 0 auto;
+    }
+    .reader-header .novel-link {
+        color: var(--text-dim); text-decoration: none; font-size: 0.85rem;
+        display: block; margin-bottom: 1rem;
+    }
+    .reader-header .novel-link:hover { color: var(--accent); }
+    .reader-header .ch-title {
+        font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;
+    }
+    .reader-header .ch-meta {
+        font-size: 0.8rem; color: var(--text-dim);
+    }
+
+    /* ── Floating top toolbar ────────────── */
+    .reader-toolbar {
+        position: sticky; top: 56px; z-index: 50;
+        background: var(--bg-card); border-bottom: 1px solid var(--border);
+        padding: 0.5rem 1rem; display: flex; align-items: center;
+        gap: 0.5rem; justify-content: center; flex-wrap: wrap;
+    }
+    .reader-toolbar .ctrl-group {
+        display: flex; align-items: center; gap: 0.3rem;
+        padding: 0.2rem 0.5rem;
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: 6px;
+    }
+    .reader-toolbar .ctrl-btn {
+        background: none; border: none; color: var(--text);
+        cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 4px;
+        font-size: 0.8rem; transition: all 0.15s;
+    }
+    .reader-toolbar .ctrl-btn:hover { background: var(--accent); color: white; }
+    .reader-toolbar .ctrl-btn.active { background: var(--accent); color: white; }
+    .reader-toolbar .ctrl-label { font-size: 0.75rem; color: var(--text-dim); }
+
+    .chapter-select {
+        background: var(--bg-input); border: 1px solid var(--border);
+        color: var(--text); padding: 0.25rem 0.5rem; border-radius: 4px;
+        font-size: 0.8rem; max-width: 200px; cursor: pointer;
+    }
+
+    /* ── Floating bottom bar ──────────────── */
+    .reader-bottom-bar {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: var(--bg-card); border-top: 1px solid var(--border);
+        padding: 0.6rem 1rem; z-index: 100;
+        display: flex; align-items: center; justify-content: center;
+        gap: 1rem; transform: translateY(100%);
+        transition: transform 0.3s ease;
+    }
+    .reader-bottom-bar.visible { transform: translateY(0); }
+    .reader-bottom-bar .nav-btn {
+        display: flex; align-items: center; gap: 0.4rem;
+        padding: 0.5rem 1.2rem; border: 1px solid var(--border);
+        border-radius: 6px; background: var(--bg-input); color: var(--text);
+        cursor: pointer; text-decoration: none; font-size: 0.9rem;
+        transition: all 0.15s; white-space: nowrap;
+    }
+    .reader-bottom-bar .nav-btn:hover {
+        border-color: var(--accent); color: var(--accent);
+    }
+    .reader-bottom-bar .nav-btn.disabled {
+        opacity: 0.3; pointer-events: none;
+    }
+    .reader-bottom-bar .ch-info {
+        font-size: 0.8rem; color: var(--text-dim); text-align: center;
+    }
+    .reader-bottom-bar .ch-info strong { color: var(--text); }
+
+    /* ── Scroll-to-top ────────────────────── */
+    .scroll-top-btn {
+        position: fixed; bottom: 80px; right: 20px;
+        width: 40px; height: 40px; border-radius: 50%;
+        background: var(--accent); color: white; border: none;
+        cursor: pointer; font-size: 1.2rem; z-index: 90;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; transform: translateY(20px);
+        transition: all 0.3s ease; pointer-events: none;
+        box-shadow: 0 2px 10px rgba(108,92,231,0.3);
+    }
+    .scroll-top-btn.visible { opacity: 1; transform: translateY(0); pointer-events: all; }
+    .scroll-top-btn:hover { background: var(--accent-hover); }
+
+    /* ── Content spacing ──────────────────── */
+    .chapter-content {
+        padding-bottom: 100px; /* space for bottom bar */
+    }
+
+    /* ── Responsive ──────────────────────── */
+    @media (max-width: 768px) {
+        .reader-bottom-bar { gap: 0.5rem; padding: 0.5rem; }
+        .reader-bottom-bar .nav-btn { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+        .reader-header .ch-title { font-size: 1.2rem; }
+        .reader-toolbar { top: 0; padding: 0.3rem 0.5rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Chapter Header -->
+<div class="reader-header">
+    <a href="/novel/{{ novel.id }}" class="novel-link">← 返回《{{ novel.title }}》目录</a>
+    <h1 class="ch-title">第{{ chapter.chapter_number }}章 {{ chapter.title }}</h1>
+    <div class="ch-meta">
+        {{ chapter.word_count }}字
+        {% if chapter.quality_score %} · ⭐{{ "%.0f"|format(chapter.quality_score * 100) }}分{% endif %}
+    </div>
+</div>
+
+<!-- Sticky Toolbar -->
+<div class="reader-toolbar" id="reader-toolbar">
+    <div class="ctrl-group">
+        <span class="ctrl-label">Aa</span>
+        <button class="ctrl-btn" onclick="setFontSize('sm')" id="font-sm">小</button>
+        <button class="ctrl-btn active" onclick="setFontSize('md')" id="font-md">中</button>
+        <button class="ctrl-btn" onclick="setFontSize('lg')" id="font-lg">大</button>
+        <button class="ctrl-btn" onclick="setFontSize('xl')" id="font-xl">超大</button>
+    </div>
+    <div class="ctrl-group">
+        <button class="ctrl-btn" onclick="toggleTheme()" id="theme-btn">🌓</button>
+    </div>
+
+    <!-- Chapter quick-jump dropdown -->
+    {% if chapter_count > 1 %}
+    <select class="chapter-select" id="chapter-jump" onchange="jumpToChapter(this.value)">
+        <option value="">— 跳转到 —</option>
+        {% for i in chapter_list %}
+        <option value="{{ i }}" {% if i == chapter.chapter_number %}selected{% endif %}>第{{ i }}章</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+
+    <div class="ctrl-group" style="gap:0.3rem;">
+        <button class="btn btn-outline btn-sm" id="edit-btn" onclick="toggleEdit()">✏️ 编辑</button>
+        <button class="btn btn-primary btn-sm" id="save-btn" style="display:none;" onclick="saveEdit({{ novel.id }}, {{ chapter.chapter_number }})">💾 保存</button>
+        <button class="btn btn-outline btn-sm" id="cancel-edit-btn" style="display:none;" onclick="toggleEdit()">↩ 取消</button>
+        <span id="edit-status" style="color:var(--text-dim);font-size:0.8rem;"></span>
+    </div>
+</div>
+
+<!-- Progress Bar -->
+<div class="progress-bar" id="progress-container" style="margin:0 auto;max-width:800px;">
+    <div class="fill" id="progress-fill" style="width:0%;"></div>
+</div>
+
+<!-- Reading view -->
+{% if content %}
+<div class="chapter-content font-md" id="read-view">{{ content }}</div>
+{% else %}
+<div class="chapter-content font-md" id="read-view" style="text-align:center;padding:4rem 2rem;color:var(--text-dim);">
+    <p style="font-size:3rem;margin-bottom:1rem;">📝</p>
+    <p style="font-size:1.1rem;margin-bottom:0.5rem;">此章节尚未生成</p>
+    <p style="font-size:0.85rem;">返回<a href="/novel/{{ novel.id }}" style="color:var(--accent);">章节目录</a>，点击"✨ 生成下一章"开始写作</p>
+</div>
+{% endif %}
+
+<!-- Editing view -->
+<textarea id="edit-view" style="display:none;width:100%;max-width:800px;margin:0 auto;min-height:60vh;background:var(--bg-input);border:1px solid var(--accent);border-radius:var(--radius);color:var(--text);padding:1.5rem;font-size:1.05rem;line-height:2;font-family:inherit;resize:vertical;"></textarea>
+
+<!-- Scroll to top -->
+<button class="scroll-top-btn" id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">↑</button>
+
+<!-- Floating Bottom Navigation Bar -->
+<div class="reader-bottom-bar" id="bottom-bar">
+    {% if prev_chapter %}
+    <a href="/novel/{{ novel.id }}/chapter/{{ prev_chapter }}" class="nav-btn" id="prev-btn">← 上一章</a>
+    {% else %}
+    <span class="nav-btn disabled">← 已是第一章</span>
+    {% endif %}
+
+    <div class="ch-info">
+        <strong>第{{ chapter.chapter_number }}章</strong>
+        <span style="display:block;">{{ chapter.title }}</span>
+    </div>
+
+    {% if next_chapter %}
+    <a href="/novel/{{ novel.id }}/chapter/{{ next_chapter }}" class="nav-btn" id="next-btn">下一章 →</a>
+    {% else %}
+    <span class="nav-btn disabled">已是最新章 →</span>
+    {% endif %}
+</div>
+
+<script>
+var editing = false;
+var originalContent = '';
+var currentFontSize = 'md';
+var bottomBarHidden = true;
+
+// ── Font Size ─────────────────────────────────
+function setFontSize(size) {
+    currentFontSize = size;
+    var view = document.getElementById('read-view');
+    view.className = view.className.replace(/font-\w+/g, '');
+    view.classList.add('chapter-content', 'font-' + size);
+    ['sm','md','lg','xl'].forEach(function(s) {
+        var btn = document.getElementById('font-' + s);
+        if (btn) btn.classList.toggle('active', s === size);
+    });
+    try { localStorage.setItem('reader-font-size', size); } catch(e) {}
+}
+
+// ── Theme Toggle ──────────────────────────────
+function toggleTheme() {
+    document.body.classList.toggle('light');
+    var isLight = document.body.classList.contains('light');
+    try { localStorage.setItem('reader-theme', isLight ? 'light' : 'dark'); } catch(e) {}
+}
+
+// ── Chapter Jump ──────────────────────────────
+function jumpToChapter(num) {
+    if (num) window.location.href = '/novel/{{ novel.id }}/chapter/' + num;
+}
+
+// ── Reading Progress ──────────────────────────
+function updateProgress() {
+    var fill = document.getElementById('progress-fill');
+    if (!fill) return;
+    var scrollTop = window.scrollY || document.documentElement.scrollTop;
+    var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    var pct = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
+    fill.style.width = pct + '%';
+}
+
+// ── Bottom Bar visibility ─────────────────────
+var lastScrollY = 0;
+var scrollTimer = null;
+
+function handleScroll() {
+    updateProgress();
+    var scrollY = window.scrollY;
+    var docHeight = document.documentElement.scrollHeight;
+    var winHeight = window.innerHeight;
+    var nearBottom = (scrollY + winHeight) >= docHeight - 200;
+    var nearTop = scrollY < 200;
+
+    // Show bottom bar when scrolling up or near bottom
+    var bottomBar = document.getElementById('bottom-bar');
+    var scrollTopBtn = document.getElementById('scroll-top-btn');
+
+    if (scrollY > 600) {
+        scrollTopBtn.classList.add('visible');
+    } else {
+        scrollTopBtn.classList.remove('visible');
+    }
+
+    if (scrollY < lastScrollY - 30 || nearBottom) {
+        // Scrolling up or near bottom — show bar
+        if (bottomBar && bottomBarHidden) {
+            bottomBar.classList.add('visible');
+            bottomBarHidden = false;
+        }
+    } else if (scrollY > lastScrollY + 80 && !nearTop && !nearBottom && scrollY > 400) {
+        // Scrolling down — hide bar
+        if (bottomBar && !bottomBarHidden) {
+            bottomBar.classList.remove('visible');
+            bottomBarHidden = true;
+        }
+    } else if (nearTop) {
+        if (bottomBar && !bottomBarHidden) {
+            bottomBar.classList.remove('visible');
+            bottomBarHidden = true;
+        }
+    }
+
+    lastScrollY = scrollY;
+}
+
+// ── Edit ──────────────────────────────────────
+function toggleEdit() {
+    editing = !editing;
+    var readView = document.getElementById('read-view');
+    var editView = document.getElementById('edit-view');
+    var editBtn = document.getElementById('edit-btn');
+    var saveBtn = document.getElementById('save-btn');
+    var cancelBtn = document.getElementById('cancel-edit-btn');
+    var progressContainer = document.getElementById('progress-container');
+    var toolbar = document.getElementById('reader-toolbar');
+
+    if (editing) {
+        originalContent = readView.textContent;
+        editView.value = originalContent;
+        readView.style.display = 'none';
+        editView.style.display = 'block';
+        editBtn.style.display = 'none';
+        saveBtn.style.display = 'inline-flex';
+        cancelBtn.style.display = 'inline-flex';
+        if (progressContainer) progressContainer.style.display = 'none';
+        if (toolbar) toolbar.style.opacity = '0.5';
+    } else {
+        readView.style.display = 'block';
+        editView.style.display = 'none';
+        editBtn.style.display = 'inline-flex';
+        saveBtn.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        if (progressContainer) progressContainer.style.display = 'block';
+        if (toolbar) toolbar.style.opacity = '';
+    }
+}
+
+async function saveEdit(novelId, chNum) {
+    var saveBtn = document.getElementById('save-btn');
+    var statusEl = document.getElementById('edit-status');
+    var editView = document.getElementById('edit-view');
+    var newContent = editView.value;
+
+    if (!newContent.trim()) { alert('内容不能为空'); return; }
+
+    saveBtn.disabled = true; saveBtn.textContent = '⏳ 保存中...';
+    statusEl.innerHTML = ' <span class="loading"></span>';
+
+    try {
+        var resp = await fetch('/api/novels/' + novelId + '/chapters/' + chNum, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({content: newContent})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            statusEl.innerHTML = ' ✅ ' + data.word_count + '字';
+            document.getElementById('read-view').textContent = newContent;
+            toggleEdit();
+            setTimeout(function() { statusEl.innerHTML = ''; }, 3000);
+        } else {
+            statusEl.innerHTML = ' ❌ ' + data.error;
+        }
+    } catch(e) {
+        statusEl.innerHTML = ' ❌ ' + e.message;
+    }
+    saveBtn.disabled = false; saveBtn.textContent = '💾 保存';
+}
+
+// ── Keyboard Navigation ───────────────────────
+document.addEventListener('keydown', function(e) {
+    if (editing) return;
+    // Check focus is on body or non-input
+    var tag = (document.activeElement || {}).tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    {% if prev_chapter %}
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        window.location.href = '/novel/{{ novel.id }}/chapter/{{ prev_chapter }}';
+    }
+    {% endif %}
+    {% if next_chapter %}
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+        e.preventDefault();
+        window.location.href = '/novel/{{ novel.id }}/chapter/{{ next_chapter }}';
+    }
+    {% endif %}
+});
+
+// ── Touch / Swipe Navigation ──────────────────
+(function() {
+    var touchStartX = 0, touchStartY = 0;
+    document.addEventListener('touchstart', function(e) {
+        if (editing) return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, {passive: true});
+
+    document.addEventListener('touchend', function(e) {
+        if (editing) return;
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        var dy = e.changedTouches[0].clientY - touchStartY;
+        // Only trigger if horizontal swipe is dominant
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 80) {
+            {% if prev_chapter %}
+            if (dx > 0) window.location.href = '/novel/{{ novel.id }}/chapter/{{ prev_chapter }}';
+            {% endif %}
+            {% if next_chapter %}
+            if (dx < 0) window.location.href = '/novel/{{ novel.id }}/chapter/{{ next_chapter }}';
+            {% endif %}
+        }
+    });
+})();
+
+// ── Init ──────────────────────────────────────
+(function() {
+    // Font size
+    var savedSize = null;
+    try { savedSize = localStorage.getItem('reader-font-size'); } catch(e) {}
+    if (savedSize && ['sm','md','lg','xl'].indexOf(savedSize) >= 0) setFontSize(savedSize);
+    // Theme
+    var savedTheme = null;
+    try { savedTheme = localStorage.getItem('reader-theme'); } catch(e) {}
+    if (savedTheme === 'light') document.body.classList.add('light');
+    // Scroll
+    window.addEventListener('scroll', handleScroll, {passive: true});
+    updateProgress();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}控制台 — Novel Writer Agent{% endblock %}
+
+{% block content %}
+
+{% if not api_ready %}
+<div class="alert alert-error" style="margin-bottom:1.5rem;">
+  ⚠️ <strong>API Key 未配置</strong> — 可以浏览界面，但无法创建和生成小说。
+  请在 <code>F:\novel-writer-agent\.env</code> 中设置 <code>ANTHROPIC_API_KEY=你的密钥</code>，然后重启服务器。
+</div>
+{% else %}
+<div class="alert alert-success" style="margin-bottom:1.5rem;">
+  ✅ API 已连接 — Claude 模型就绪，可以开始创作！
+</div>
+{% endif %}
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ novel_count }}</div>
+        <div class="stat-label">小说总数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">${{ "%.3f"|format(cost.total_cost_usd) }}</div>
+        <div class="stat-label">累计成本</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">${{ "%.2f"|format(cost.remaining_budget_usd) }}</div>
+        <div class="stat-label">剩余预算</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ cost.total_calls }}</div>
+        <div class="stat-label">API 调用次数</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📚 我的小说</span>
+        <div style="display:flex;gap:0.5rem;">
+            {% if scheduler_running %}
+            <button class="btn btn-outline btn-sm" onclick="stopScheduler()">⏹ 停止调度</button>
+            {% else %}
+            <button class="btn btn-outline btn-sm" onclick="startScheduler()">▶ 启动调度</button>
+            {% endif %}
+            <a href="/create" class="btn btn-primary btn-sm">+ 创建新小说</a>
+        </div>
+    </div>
+
+    {% if novels %}
+    <div class="novel-list">
+        {% for novel in novels %}
+        <div class="novel-item genre-{{ novel.genre }}">
+            <div class="novel-info">
+                <h3><a href="/novel/{{ novel.id }}">{{ novel.title }}</a></h3>
+                <div class="novel-meta">
+                    <span>{{ novel.genre }}</span>
+                    <span>📖 {{ novel.total_chapters }}/{{ novel.target_chapters }} 章</span>
+                    <span class="badge badge-{{ novel.status }}">{{ novel.status }}</span>
+                    {% if novel.latest_chapter > 0 %}
+                    <span>最新: 第{{ novel.latest_chapter }}章</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="novel-actions">
+                {% if novel.latest_chapter > 0 %}
+                <a href="/novel/{{ novel.id }}/chapter/{{ novel.latest_chapter }}" class="btn btn-outline btn-sm" style="border-color:var(--accent);color:var(--accent);">
+                    📖 阅读
+                </a>
+                {% endif %}
+                <select id="count-{{ novel.id }}" style="width:auto;padding:0.25rem 0.4rem;font-size:0.8rem;">
+                    <option value="1">1章</option>
+                    <option value="3">3章</option>
+                    <option value="5">5章</option>
+                </select>
+                <button class="btn btn-success btn-sm" id="gen-btn-{{ novel.id }}" onclick="generateChapter({{ novel.id }})">
+                    ✨ 生成
+                </button>
+                <a href="/novel/{{ novel.id }}" class="btn btn-outline btn-sm">📋 目录</a>
+                <button class="btn btn-outline btn-sm" onclick="deleteNovel({{ novel.id }}, '{{ novel.title }}')" style="color:var(--red);border-color:var(--red);">
+                    🗑
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:3rem;color:var(--text-dim);">
+        <p style="font-size:3rem;margin-bottom:1rem;">📝</p>
+        <p>还没有小说，创建你的第一部吧！</p>
+        <a href="/create" class="btn btn-primary" style="margin-top:1rem;">🚀 开始创作</a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+var TASK_POLL_MS = 2000; // Poll every 2 seconds
+
+// ── Restore active task on page load ────────────
+(function() {
+    var activeTask = null;
+    try { activeTask = JSON.parse(localStorage.getItem('nw-active-task') || 'null'); } catch(e) {}
+    if (activeTask && activeTask.expires > Date.now()) {
+        // There was a task running — resume polling
+        pollTask(activeTask.taskId, activeTask.novelId, activeTask.type, activeTask.btnId);
+    }
+})();
+
+function saveActiveTask(taskId, novelId, type, btnId) {
+    try {
+        localStorage.setItem('nw-active-task', JSON.stringify({
+            taskId: taskId, novelId: novelId, type: type, btnId: btnId,
+            expires: Date.now() + 10 * 60 * 1000  // 10 min TTL
+        }));
+    } catch(e) {}
+}
+
+function clearActiveTask() {
+    try { localStorage.removeItem('nw-active-task'); } catch(e) {}
+}
+
+function setBtnLoading(btnId, loading) {
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.disabled = loading;
+    btn.textContent = loading ? '⏳ 生成中...' : '✨ 生成下一章';
+}
+
+async function generateChapter(novelId) {
+    var btnId = 'gen-btn-' + novelId;
+    var countSel = document.getElementById('count-' + novelId);
+    var count = countSel ? parseInt(countSel.value) || 1 : 1;
+    setBtnLoading(btnId, true);
+
+    try {
+        var resp = await fetch('/api/novels/' + novelId + '/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({count: count})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            saveActiveTask(data.task_id, novelId, 'generate', btnId);
+            pollTask(data.task_id, novelId, 'generate', btnId);
+        } else {
+            alert('❌ ' + data.error);
+            setBtnLoading(btnId, false);
+        }
+    } catch(e) {
+        alert('❌ 请求失败: ' + e.message);
+        setBtnLoading(btnId, false);
+    }
+}
+
+async function pollTask(taskId, novelId, type, btnId) {
+    try {
+        var resp = await fetch('/api/tasks/' + taskId);
+        var state = await resp.json();
+    } catch(e) {
+        // Network error — retry in a bit
+        setTimeout(function() { pollTask(taskId, novelId, type, btnId); }, TASK_POLL_MS);
+        return;
+    }
+
+    if (state.status === 'completed') {
+        clearActiveTask();
+        if (btnId) setBtnLoading(btnId, false);
+        if (type === 'generate' && state.chapter_number) {
+            window.location.href = '/novel/' + novelId + '/chapter/' + state.chapter_number;
+        } else if (type === 'create') {
+            window.location.href = '/novel/' + (state.novel_id || novelId);
+        } else {
+            location.reload();
+        }
+    } else if (state.status === 'failed') {
+        clearActiveTask();
+        if (btnId) setBtnLoading(btnId, false);
+        alert('❌ 生成失败: ' + (state.error || '未知错误'));
+    } else if (state.status === 'cancelled') {
+        clearActiveTask();
+        if (btnId) setBtnLoading(btnId, false);
+    } else {
+        // Still running — poll again
+        setTimeout(function() { pollTask(taskId, novelId, type, btnId); }, TASK_POLL_MS);
+    }
+}
+
+async function startScheduler() {
+    var resp = await fetch('/api/scheduler/start', {method:'POST'});
+    var data = await resp.json();
+    alert(data.success ? '✅ 调度器已启动！每日 08:00 + 20:00 自动生成' : '⚠️ ' + data.message);
+    location.reload();
+}
+
+async function deleteNovel(novelId, title) {
+    if (!confirm('确定要删除《' + title + '》吗？\n\n这将永久删除所有章节文件和记录，不可恢复！')) return;
+    var resp = await fetch('/api/novels/' + novelId, {method: 'DELETE'});
+    var data = await resp.json();
+    alert(data.success ? '✅ ' + data.message : '❌ ' + data.error);
+    location.reload();
+}
+
+async function stopScheduler() {
+    var resp = await fetch('/api/scheduler/stop', {method:'POST'});
+    var data = await resp.json();
+    alert(data.success ? '⏹ 调度器已停止' : '⚠️ ' + data.message);
+    location.reload();
+}
+</script>
+{% endblock %}
