@@ -34,6 +34,7 @@ _chapter_repo: Optional[ChapterRepository] = None
 _file_store: Optional[FileStore] = None
 _db: Optional[Database] = None
 _trend_analyzer: Optional[TrendAnalyzer] = None
+_learning_engine = None  # WritingAnalytics instance
 
 
 def init_jobs(
@@ -44,9 +45,10 @@ def init_jobs(
     file_store: FileStore,
     db: Database,
     trend_analyzer: Optional[TrendAnalyzer] = None,
+    learning_engine=None,
 ) -> None:
     """Initialize the global references for job functions."""
-    global _planner, _cost_tracker, _novel_repo, _chapter_repo, _file_store, _db, _trend_analyzer
+    global _planner, _cost_tracker, _novel_repo, _chapter_repo, _file_store, _db, _trend_analyzer, _learning_engine
     _planner = planner
     _cost_tracker = cost_tracker
     _novel_repo = novel_repo
@@ -54,7 +56,8 @@ def init_jobs(
     _file_store = file_store
     _db = db
     _trend_analyzer = trend_analyzer
-    logger.info("Job globals initialized (trend_analyzer=%s)", trend_analyzer is not None)
+    _learning_engine = learning_engine
+    logger.info("Job globals initialized (learning=%s)", learning_engine is not None)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -213,6 +216,39 @@ def health_check():
 # ═══════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════
+
+async def weekly_learning():
+    """Weekly learning cycle — analyze writing patterns and update knowledge base.
+
+    Runs alongside trend refresh to combine market data with self-analysis.
+    """
+    logger.info("=" * 50)
+    logger.info("JOB: Weekly Learning Cycle — %s", datetime.now().isoformat())
+    logger.info("=" * 50)
+
+    if _learning_engine is None:
+        logger.warning("Learning engine not initialized — skipping weekly learning")
+        return
+
+    try:
+        report = await _learning_engine.run_analysis_cycle()
+
+        logger.info("Learning cycle complete:")
+        logger.info("  Chapters analyzed: %d", report.total_chapters_analyzed)
+        logger.info("  Quality trend:     %s", report.quality_trend)
+        logger.info("  Avg quality:       %.2f", report.avg_quality)
+        logger.info("  Suggestions:       %d", len(report.improvement_suggestions))
+        for s in report.improvement_suggestions[:3]:
+            logger.info("    • %s", s)
+
+        if report.best_chapter:
+            logger.info("  Best chapter:  #%d (%.2f)", report.best_chapter["chapter_number"], report.best_chapter["quality_score"])
+        if report.worst_chapter:
+            logger.info("  Worst chapter: #%d (%.2f)", report.worst_chapter["chapter_number"], report.worst_chapter["quality_score"])
+
+    except Exception as e:
+        logger.exception("Weekly learning cycle FAILED: %s", e)
+
 
 def _get_active_novel(novel_id: Optional[int] = None):
     """Get the novel to generate chapters for."""

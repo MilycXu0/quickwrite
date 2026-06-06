@@ -33,7 +33,7 @@ from src.llm.prompt_manager import PromptManager
 from src.publishing.local_publisher import LocalPublisher
 from src.scheduler.jobs import (cost_report, generate_evening_chapter,
                                  generate_morning_chapter, health_check, init_jobs,
-                                 refresh_trends)
+                                 refresh_trends, weekly_learning)
 from src.scheduler.scheduler_service import SchedulerService
 from src.storage.database import Database
 from src.storage.file_store import FileStore
@@ -349,6 +349,20 @@ class NovelWriterApp:
         print("  Starting Scheduler")
         print("=" * 60)
 
+        # Initialize learning system
+        from src.learning.knowledge_base import KnowledgeBase
+        from src.learning.style_optimizer import StyleOptimizer
+        from src.learning.writing_analytics import WritingAnalytics
+        kb = KnowledgeBase()
+        style_opt = StyleOptimizer(kb)
+        self._planner.style_optimizer = style_opt
+        learning_engine = WritingAnalytics(
+            llm_client=self.llm_client,
+            knowledge_base=kb,
+            chapter_repo=self.chapter_repo,
+            novel_repo=self.novel_repo,
+        )
+
         # Initialize job globals
         planner = self._get_planner()
         init_jobs(
@@ -359,6 +373,7 @@ class NovelWriterApp:
             file_store=self.file_store,
             db=self.db,
             trend_analyzer=self.trend_analyzer,
+            learning_engine=learning_engine,
         )
 
         # Start the scheduler
@@ -408,6 +423,16 @@ class NovelWriterApp:
             name="Weekly Trend Refresh",
         )
         print(f"  ✓ Trend refresh:    Every {trend_day} at {trend_time}")
+
+        self.scheduler.add_weekly_job(
+            weekly_learning,
+            job_id="weekly_learning",
+            day_of_week=trend_day,
+            hour=trend_h + 1,
+            minute=0,
+            name="Weekly Learning Cycle",
+        )
+        print(f"  ✓ Learning cycle:   Every {trend_day} at {trend_h + 1}:00")
 
         # Register daily cost report
         self.scheduler.add_daily_job(

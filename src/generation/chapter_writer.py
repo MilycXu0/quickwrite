@@ -37,6 +37,7 @@ class ChapterWriter:
         file_store: FileStore,
         chapter_repo: ChapterRepository,
         novel_repo: NovelRepository,
+        style_optimizer=None,  # Optional learning system
     ):
         self.llm = llm_client
         self.prompts = prompt_manager
@@ -46,6 +47,7 @@ class ChapterWriter:
         self.files = file_store
         self.chapter_repo = chapter_repo
         self.novel_repo = novel_repo
+        self.optimizer = style_optimizer
 
     async def write_chapter(
         self,
@@ -69,9 +71,27 @@ class ChapterWriter:
             RuntimeError: If generation fails after max retries.
         """
         chapter_number = outline.chapter_number
-        model = model or "claude-sonnet-4-6-20250514"
 
-        logger.info("Writing chapter %d: '%s' (model=%s)", chapter_number, outline.title, model)
+        # Use style optimizer for model/temperature recommendations
+        recent_q = None
+        if self.optimizer:
+            recent_ch = self.chapter_repo.get_recent(novel.id, limit=1)
+            if recent_ch:
+                recent_q = recent_ch[0].quality_score
+
+        model = model or (
+            self.optimizer.recommend_model(novel.genre, chapter_number, recent_q)
+            if self.optimizer
+            else "claude-sonnet-4-6-20250514"
+        )
+
+        temp = (
+            self.optimizer.recommend_temperature(novel.genre)
+            if self.optimizer
+            else 0.8
+        )
+
+        logger.info("Writing chapter %d: '%s' (model=%s, temp=%.2f)", chapter_number, outline.title, model, temp)
 
         # ── Upsert chapter record ─────────────────────────
         chapter = Chapter(
@@ -96,17 +116,23 @@ class ChapterWriter:
             special_instructions=special_instructions,
         )
 
+        # Inject learning context if optimizer available
+        if self.optimizer:
+            learning_ctx = self.optimizer.get_compact_context(novel.genre)
+            if learning_ctx:
+                ctx.system_prompt += f"\n\n[学习经验]\n{learning_ctx}"
+
         # ── Generate ─────────────────────────────────────
         response = await self.llm.generate(
             system_prompt=ctx.system_prompt,
             user_message=ctx.user_prompt,
             model=model,
             max_tokens=4096,
-            temperature=0.8,
+            temperature=temp,
             enable_thinking=True,
             thinking_budget=1024,
             enable_caching=True,
-            stream=True,  # Stream for better UX on long output
+            stream=True,
         )
 
         chapter_content = response.text.strip()

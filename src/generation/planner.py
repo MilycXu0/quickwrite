@@ -47,6 +47,7 @@ class NovelPlanner:
         local_publisher: LocalPublisher,
         novel_repo: NovelRepository,
         chapter_repo: ChapterRepository,
+        style_optimizer=None,
     ):
         self.llm = llm_client
         self.world_builder = world_builder
@@ -57,6 +58,7 @@ class NovelPlanner:
         self.publisher = local_publisher
         self.novel_repo = novel_repo
         self.chapter_repo = chapter_repo
+        self.style_optimizer = style_optimizer
 
         # Active story bibles (novel_id -> StoryBibleManager)
         self._bibles: dict[int, StoryBibleManager] = {}
@@ -384,6 +386,7 @@ class NovelPlanner:
             file_store=fs,
             chapter_repo=self.chapter_repo,
             novel_repo=self.novel_repo,
+            style_optimizer=self.style_optimizer,
         )
 
     def _get_trend_recommendation(self, trend_analyzer=None) -> dict:

@@ -34,7 +34,7 @@ from src.llm.prompt_manager import PromptManager
 from src.publishing.local_publisher import LocalPublisher
 from src.scheduler.jobs import (cost_report, generate_evening_chapter,
                                  generate_morning_chapter, health_check, init_jobs,
-                                 refresh_trends)
+                                 refresh_trends, weekly_learning)
 from src.scheduler.scheduler_service import SchedulerService
 from src.storage.database import Database
 from src.storage.file_store import FileStore
@@ -127,6 +127,23 @@ class WebNovelApp:
 
         self.local_publisher = LocalPublisher(self.file_store)
 
+        # Initialize learning system
+        from src.learning.knowledge_base import KnowledgeBase
+        from src.learning.style_optimizer import StyleOptimizer
+        self.knowledge_base = KnowledgeBase()
+        self.style_optimizer = StyleOptimizer(self.knowledge_base)
+
+        if self._api_ready:
+            from src.learning.writing_analytics import WritingAnalytics
+            self.learning_engine = WritingAnalytics(
+                llm_client=self.llm_client,
+                knowledge_base=self.knowledge_base,
+                chapter_repo=self.chapter_repo,
+                novel_repo=self.novel_repo,
+            )
+        else:
+            self.learning_engine = None
+
         self.scheduler = SchedulerService(
             db_url=self.config.db_url,
             timezone=self.config.scheduling.get("timezone", "Asia/Shanghai"),
@@ -163,6 +180,7 @@ class WebNovelApp:
                 local_publisher=self.local_publisher,
                 novel_repo=self.novel_repo,
                 chapter_repo=self.chapter_repo,
+                style_optimizer=self.style_optimizer,
             )
         return self._planner
 
@@ -352,6 +370,43 @@ async def chapter_view(request: Request, novel_id: int, chapter_num: int):
         "chapter_count": actual_ch_count,
         "chapter_list": list(range(1, actual_ch_count + 1)),
     })
+
+
+@app.get("/learning", response_class=HTMLResponse)
+async def learning_page(request: Request):
+    """Learning report page showing system knowledge and style evolution."""
+    app_inst = get_app()
+    kb_stats = app_inst.knowledge_base.get_stats()
+
+    return render("learning.html", {
+        "request": request,
+        "stats": kb_stats,
+        "genre_summary": kb_stats.get("genre_summary", {}),
+        "top_elements": app_inst.knowledge_base._data.get("top_performing_elements", []),
+        "global_tips": app_inst.knowledge_base._data.get("global_tips", []),
+        "evolution": app_inst.knowledge_base._data.get("style_evolution", []),
+    })
+
+
+@app.post("/api/learning/run")
+async def api_run_learning():
+    """Manually trigger a learning analysis cycle."""
+    app_inst = get_app()
+    if not app_inst.learning_engine:
+        return JSONResponse({"success": False, "error": "Learning engine not available"}, status_code=400)
+
+    try:
+        report = await app_inst.learning_engine.run_analysis_cycle()
+        return JSONResponse({
+            "success": True,
+            "chapters_analyzed": report.total_chapters_analyzed,
+            "quality_trend": report.quality_trend,
+            "avg_quality": report.avg_quality,
+            "suggestions": report.improvement_suggestions[:5],
+        })
+    except Exception as e:
+        logger.exception("Manual learning cycle failed")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -640,6 +695,7 @@ async def api_start_scheduler():
             file_store=app_inst.file_store,
             db=app_inst.db,
             trend_analyzer=app_inst.trend_analyzer,
+            learning_engine=app_inst.learning_engine,
         )
         app_inst.scheduler.start()
         # Register jobs
@@ -649,9 +705,10 @@ async def api_start_scheduler():
         app_inst.scheduler.add_daily_job(generate_morning_chapter, "morning_chapter", mh, mm)
         app_inst.scheduler.add_daily_job(generate_evening_chapter, "evening_chapter", eh, em)
         app_inst.scheduler.add_weekly_job(refresh_trends, "trend_refresh", "sun", 3, 0)
+        app_inst.scheduler.add_weekly_job(weekly_learning, "weekly_learning", "sun", 4, 0)
         app_inst.scheduler.add_daily_job(cost_report, "cost_report", 23, 0)
         app_inst.scheduler.add_interval_job(health_check, "health_check", 30)
-        return JSONResponse({"success": True, "message": "Scheduler started"})
+        return JSONResponse({"success": True, "message": "Scheduler started (with weekly learning)"})
     return JSONResponse({"success": False, "message": "Already running"})
 
 
@@ -749,9 +806,16 @@ async def api_export_epub(novel_id: int):
 # Entry Point
 # ═══════════════════════════════════════════════════════════
 
-def run_server(host: str = "127.0.0.1", port: int = 8080):
-    """Start the web server."""
+def run_server(host: str = None, port: int = 8080):
+    """Start the web server.
+
+    host defaults to 0.0.0.0 in production (when not on Windows),
+    or 127.0.0.1 on Windows for local development.
+    """
+    import platform
     import uvicorn
+    if host is None:
+        host = "127.0.0.1" if platform.system() == "Windows" else "0.0.0.0"
     print(f"\n  ╔══════════════════════════════════════╗")
     print(f"  ║  Novel Writer Agent Web UI          ║")
     print(f"  ║  http://{host}:{port}                 ║")

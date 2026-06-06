@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}学习报告 — Novel Writer Agent{% endblock %}
+
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+    <h2>🧠 学习报告</h2>
+    <button class="btn btn-primary btn-sm" onclick="runLearningCycle()" id="run-learning-btn">
+        ▶ 立即分析
+    </button>
+</div>
+
+<div id="learning-status"></div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_cycles }}</div>
+        <div class="stat-label">学习周期</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.genres_tracked }}</div>
+        <div class="stat-label">已学习类型</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_tips }}</div>
+        <div class="stat-label">积累技巧</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.evolution_steps }}</div>
+        <div class="stat-label">风格进化</div>
+    </div>
+</div>
+
+<!-- Genre Knowledge -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📚 类型知识库</span>
+    </div>
+    {% if genre_summary %}
+    <div class="chapter-list">
+        {% for genre, gk in genre_summary.items() %}
+        <div class="chapter-row">
+            <span class="ch-title" style="font-weight:600;">{{ genre }}</span>
+            <span class="ch-meta">
+                <span>📝 {{ gk.chapters }}章</span>
+                <span>⭐ {{ "%.0f"|format(gk.avg_quality * 100) }}分均分</span>
+                <span>💡 {{ gk.best_practices_count }}条经验</span>
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="text-align:center;padding:2rem;color:var(--text-dim);">尚无学习数据 — 生成更多章节后系统会自动学习</p>
+    {% endif %}
+</div>
+
+<!-- Top Elements -->
+{% if top_elements %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">🏆 最佳元素组合</span>
+    </div>
+    <div class="chapter-list">
+        {% for elem in top_elements[:10] %}
+        <div class="chapter-row">
+            <span class="ch-title">{{ elem.element }}</span>
+            <span class="ch-meta">
+                <span>⭐ {{ "%.0f"|format(elem.avg_quality * 100) }}分</span>
+                <span>使用 {{ elem.usage_count }} 次</span>
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Global Tips -->
+{% if global_tips %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">💡 通用写作技巧</span>
+    </div>
+    <div class="chapter-list">
+        {% for tip in global_tips[:10] %}
+        <div class="chapter-row">
+            <span class="ch-title" style="font-size:0.9rem;">{{ tip }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Style Evolution -->
+{% if evolution %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📈 风格进化历史</span>
+    </div>
+    <div class="chapter-list">
+        {% for ev in evolution[:10] %}
+        <div class="chapter-row">
+            <span class="ch-num">#{{ ev.cycle }}</span>
+            <span class="ch-title" style="font-size:0.85rem;">
+                分析 {{ ev.chapters_analyzed }} 章 · 均分 {{ ev.avg_quality }} · +{{ ev.new_patterns }} 新模式
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+async function runLearningCycle() {
+    var btn = document.getElementById('run-learning-btn');
+    var status = document.getElementById('learning-status');
+    btn.disabled = true;
+    btn.textContent = '⏳ 分析中...';
+    status.innerHTML = '<div class="alert alert-info"><span class="loading"></span> 正在分析写作数据...</div>';
+
+    try {
+        var resp = await fetch('/api/learning/run', {method: 'POST'});
+        var data = await resp.json();
+        if (data.success) {
+            status.innerHTML = '<div class="alert alert-success">✅ 学习完成！分析了 ' + data.chapters_analyzed + ' 章，趋势: ' + data.quality_trend + '</div>';
+            setTimeout(function() { location.reload(); }, 1500);
+        } else {
+            status.innerHTML = '<div class="alert alert-error">❌ ' + (data.error || '分析失败') + '</div>';
+        }
+    } catch(e) {
+        status.innerHTML = '<div class="alert alert-error">❌ ' + e.message + '</div>';
+    }
+    btn.disabled = false;
+    btn.textContent = '▶ 立即分析';
+}
+</script>
+{% endblock %}
