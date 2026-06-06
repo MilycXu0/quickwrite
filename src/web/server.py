@@ -9,6 +9,8 @@ FastAPI-based web UI for:
 """
 
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
 import sys
@@ -55,6 +57,79 @@ STATIC_DIR = WEB_DIR / "static"
 app = FastAPI(title="Novel Writer Agent", version="1.0.0")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
+
+# ── Auth Configuration ────────────────────────────────────
+
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+SECRET_KEY = os.environ.get("NOVEL_SECRET_KEY", "quickwrite-secret-change-me")
+COOKIE_NAME = "qw_token"
+COOKIE_MAX_AGE = 86400 * 30  # 30 days
+
+
+def _make_token(password: str) -> str:
+    """Create a signed token from the password."""
+    payload = f"{password}:{int(time.time())}"
+    sig = hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}:{sig}"
+
+
+def _verify_token(token: str) -> bool:
+    """Verify a signed token against the admin password."""
+    if not ADMIN_PASSWORD:
+        return True  # No password set — allow all access
+    try:
+        parts = token.rsplit(":", 1)
+        if len(parts) != 2:
+            return False
+        payload, sig = parts
+        expected_sig = hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected_sig):
+            return False
+        stored_password = payload.rsplit(":", 1)[0]
+        return hmac.compare_digest(stored_password, ADMIN_PASSWORD)
+    except Exception:
+        return False
+
+
+def _is_public_path(path: str) -> bool:
+    """Paths that don't require authentication."""
+    public = ["/static/", "/login", "/api/auth/login", "/api/auth/logout"]
+    return any(path.startswith(p) for p in public)
+
+
+# ── Auth Middleware ───────────────────────────────────────
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Protect all routes except login and static files."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip auth if no password configured
+        if not ADMIN_PASSWORD:
+            return await call_next(request)
+
+        # Allow public paths
+        if _is_public_path(request.url.path):
+            return await call_next(request)
+
+        # Check auth cookie
+        token = request.cookies.get(COOKIE_NAME, "")
+        if not token or not _verify_token(token):
+            # For API requests, return 401 instead of redirect
+            if request.url.path.startswith("/api/"):
+                return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+            # For page requests, redirect to login
+            login_url = f"/login?next={request.url.path}"
+            return RedirectResponse(url=login_url, status_code=302)
+
+        response = await call_next(request)
+        return response
+
+
+app.add_middleware(AuthMiddleware)
 
 
 def render(template_name: str, context: dict) -> HTMLResponse:
@@ -242,6 +317,52 @@ class WebNovelApp:
 # ═══════════════════════════════════════════════════════════
 # Page Routes
 # ═══════════════════════════════════════════════════════════
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Login page."""
+    next_url = request.query_params.get("next", "/")
+    return render("login.html", {
+        "request": request,
+        "next": next_url,
+        "has_password": bool(ADMIN_PASSWORD),
+    })
+
+
+@app.post("/api/auth/login")
+async def api_login(request: Request):
+    """Verify password and set auth cookie."""
+    try:
+        body = await request.json()
+        password = body.get("password", "")
+    except Exception:
+        return JSONResponse({"success": False, "error": "Invalid request"}, status_code=400)
+
+    if not password:
+        return JSONResponse({"success": False, "error": "请输入密码"}, status_code=400)
+
+    if not hmac.compare_digest(password, ADMIN_PASSWORD):
+        return JSONResponse({"success": False, "error": "密码错误"}, status_code=401)
+
+    token = _make_token(password)
+    response = JSONResponse({"success": True, "message": "登录成功"})
+    response.set_cookie(
+        COOKIE_NAME, token,
+        max_age=COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=False,  # Set True if using HTTPS
+    )
+    return response
+
+
+@app.post("/api/auth/logout")
+async def api_logout():
+    """Clear auth cookie."""
+    response = JSONResponse({"success": True})
+    response.delete_cookie(COOKIE_NAME)
+    return response
+
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):

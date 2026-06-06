@@ -15,11 +15,21 @@
             <a href="/create" class="{% if request.url.path == '/create' %}active{% endif %}">🆕 创建小说</a>
             <a href="/learning" class="{% if request.url.path == '/learning' %}active{% endif %}">🧠 学习报告</a>
             <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">⚙️ 设置</a>
+            <a href="#" onclick="doLogout();return false;" style="color:var(--red);">🚪 登出</a>
         </div>
     </nav>
 
     <main>
         {% block content %}{% endblock %}
     </main>
+
+    <script>
+    async function doLogout() {
+        try {
+            await fetch('/api/auth/logout', {method: 'POST'});
+        } catch(e) {}
+        window.location.href = '/login';
+    }
+    </script>
 </body>
 </html>
